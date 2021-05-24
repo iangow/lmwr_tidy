@@ -1,0 +1,21 @@
+set.seed(123456789)
+N <- 1000
+u <- sort(rnorm(N, mean = 1, sd = 3))
+
+p <- 2
+mean(u - p > 0)
+
+1 - pnorm(p, mean = 1, sd = 3)
+
+p <- runif(9, min = -10, max = 10)
+s <- matrix(NA, length(p), 1)
+for (i in 1:length(p)) {
+  s[i, 1] <- mean(u - p[i] > 0)
+}
+s
+
+plot(1 - ecdf(u)(u), u, type = "l", lwd = 3, lty = 1, col = 1,
+     xlab = "s", ylab = "p", xlim = c(0, 1))
+lines(sort(s), p[order(s)], type = "l", lwd = 3, lty = 2)
+abline(h = 0, lty = 2)
+legend("bottomleft", c("True", "Est."), lwd = 3, lty = c(1:2))

@@ -1,0 +1,69 @@
+set.seed(123456789)
+N <- 50
+a <- 1
+b <- 0
+c <- 3
+d <- 4
+
+gen_data <- function() {
+  x <- round(runif(N))
+  u_w <- runif(N)
+  w <- d * x + u_w
+  u <- rnorm(N)
+  y <- a + b* x + c * w + u
+  data.frame(y, x, w)
+}
+
+df <- gen_data()
+  
+fm <- list()
+fm[[1]] <- lm(y ~ x, data = df)
+fm[[2]] <- update(fm[[1]], ~ . + w)
+
+stargazer(fm, type = "text", keep.stat = c("n", "rsq"),
+          omit = "^(reg66|smsa)")
+e_hat <- lm(y ~ x, data = df)$coefficients[2]
+c_hat <- lm(y ~ w, data = df)$coefficients[2]
+d_hat <- lm(w ~ x, data = df)$coefficients[2]
+b_hat <- e_hat - c_hat * d_hat
+b_hat
+
+# Chapter 2.5.3
+
+
+sim_run <- function(i) {
+
+  df <- gen_data()
+  lm_temp <- summary(lm(y ~ x + w, data = df))[[4]]
+  e_hat <- lm(y ~ x, data = df)$coefficients[2]
+  c_hat <- lm(y ~ w, data = df)$coefficients[2]
+  d_hat <- lm(w ~ x, data = df)$coefficients[2]
+  b_hat <- e_hat - c_hat * d_hat
+  data.frame(standard = lm_temp[2], 
+             t_stat = lm_temp[8], 
+             proposed = b_hat)
+}
+
+b_mat <- bind_rows(lapply(1:100, sim_run))
+
+summ_tab <- summary(b_mat)
+rownames(summ_tab) <- NULL
+summ_tab
+
+hist(b_mat$standard, freq = FALSE, 
+     xlab = "Estimate of b", main = "")
+lines(density(b_mat$standard), type = "l", lwd = 3)
+abline(v = c(min(b_mat$proposed),
+             max(b_mat$proposed)), lty = 2, lwd = 3)
+
+# These lines just get the seed in the right place
+set.seed(123456789)
+for (i in 1:100) print(df <- gen_data()
+X <- cbind(1, df$x)
+W <- cbind(1, df$w)
+y <- df$y
+beta_tilde_hat <- solve(t(X) %*% X) %*% t(X) %*% y
+Delta_hat <- solve(t(X) %*% X) %*% t(X) %*% W
+gamma_hat <- solve(t(W) %*% W) %*% t(W) %*% y
+beta_hat <- beta_tilde_hat - Delta_hat %*% gamma_hat
+beta_hat
