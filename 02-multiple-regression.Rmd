@@ -1,3 +1,11 @@
+# Multiple regression
+
+```{r}
+library(stargazer)
+```
+
+
+```{r}
 set.seed(123456789)
 N <- 50
 a <- 1
@@ -55,7 +63,9 @@ hist(b_mat$standard, freq = FALSE,
 lines(density(b_mat$standard), type = "l", lwd = 3)
 abline(v = c(min(b_mat$proposed),
              max(b_mat$proposed)), lty = 2, lwd = 3)
+```
 
+```{r, eval=FALSE}
 # These lines just get the seed in the right place
 set.seed(123456789)
 for (i in 1:100) print(df <- gen_data()
@@ -67,3 +77,4 @@ Delta_hat <- solve(t(X) %*% X) %*% t(X) %*% W
 gamma_hat <- solve(t(W) %*% W) %*% t(W) %*% y
 beta_hat <- beta_tilde_hat - Delta_hat %*% gamma_hat
 beta_hat
+```

@@ -1,0 +1,169 @@
+# Panel Data
+
+## First differences
+
+### First difference model
+
+### Simulated panel data
+
+```{r, message=FALSE}
+library(dplyr, warn.conflicts = FALSE)
+library(lmwr)
+library(tidyr)
+library(stargazer)
+```
+```{r}
+set.seed(123456789)
+N <- 1000
+T <- 2
+a <- -2
+b <- 3
+d <- -4
+u <- c(5, 6)
+```
+
+```{r}
+x1 <- runif(N)
+x2 <- x1 + runif(N)
+x <- as.matrix(rbind(x1, x2))
+e <- matrix(rnorm(N * T), nrow = T)
+y <- a + b * x + d * u + e
+```
+
+```{r}
+diffy <- y[2, ] - y[1, ]
+diffx <- x[2, ] - x[1, ]
+lm1 <- lm(diffy ~ diffx)
+```
+
+```{r, results='asis', echo=FALSE}
+library(xtable)
+print(xtable(summary(lm1)$coefficients), type="html")
+```
+
+If we wanted data in a tidy data frame, we could use functions from `tidyr` to rearrange the matrices and vectors above into a tidy data frame with and `id` column for each individual and a `time` column for periods $1$ and $2$.
+However, as the following code suggests, while the code works, this approach is quite unwieldy.
+
+
+```{r}
+df <- 
+  tibble(id = 1:(dim(y)[2]), y_1 = y[1,], y_2 = y[2, ], 
+             x_1 = x[1, ], x_2 = x[2,]) %>% 
+  pivot_longer(cols = y_1:x_2) %>%
+  separate(name, into = c("var", "time"), sep = "_", 
+           convert = TRUE) %>%
+  pivot_wider(id_cols = c("id", "time"), names_from = "var",
+              values_from = "value")
+
+df
+```
+
+A better approach is probably to build up the data using a "tidy" approach from the outset.
+Note that the `arrange` below is only needed to ensure that the results line up with those above and could be omitted in general.
+
+```{r}
+set.seed(123456789)
+
+df_pre <- tibble(id = 1:N, time = 1L, x = runif(N), u = 5)
+df_post <- tibble(id = 1:N, time = 2L, x = df_pre$x + runif(N), u = 6)
+
+df_all <-
+  bind_rows(df_pre, df_post) %>%
+  arrange(id, time) %>%
+  mutate(e = rnorm(N * T)) %>%
+  mutate(y = a + b * x + d * u + e) %>%
+  select(-u, -e)
+
+df_all
+```
+
+### OLS estimation of first differences
+
+```{r}
+df %>%
+  group_by(id) %>%
+  arrange(time) %>%
+  mutate(diffy = y - lag(y),
+         diffx = x - lag(x)) %>%
+  lm(diffy ~ diffx, data = .)
+```
+
+## Difference in difference
+
+### Difference-in-difference estimator
+
+### Difference-in-difference estimator in R
+
+The following version of the `f_did` function substracts four lines from that in the book.
+
+```{r}
+f_did <- function(y, treat) {
+  y1 <- y[1, ]
+  y2 <- y[2, ]
+  did <- matrix(NA, 3, 3)
+  did[1, 1] <- mean(y2[treat==1])
+  did[2, 1] <- mean(y1[treat==1])
+  did[1, 2] <- mean(y2[treat==0])
+  did[2, 2] <- mean(y1[treat==0])
+  did[3, ] <- did[1, ] - did[2, ]
+  did[ , 3] <- did[ , 1] - did[ , 2]
+  row.names(did) <- c("Period 2", "Period 1", "Diff")
+  colnames(did) <- c("Treated", "Not Treated", "Diff")
+  return(did)
+}
+  
+```
+
+```{r}
+set.seed(123456789)
+treat <- runif(N) < 0.5
+x2 <- x1 + treat
+x <- rbind(x1, x2)
+y <- a + b * x + d * u + e
+did1 <- f_did(y, treat)
+```
+
+```{r, results='asis', echo=FALSE}
+print(xtable(did1), type="html")
+```
+
+## Minimum wage increase in New Jersey
+
+Here I was too lazy to do the "base R" version.
+Note that Adams (2021) states "Card and Krueger (1994) present results on a measure called full-time equivalence.
+It is unclear how that measure is calculated."
+Actually if you go to the website for the data, you can see from the provided SAS code that it is calculated as below.
+I don't quite reproduce the results in Table 3 of [the paper](https://davidcard.berkeley.edu/papers/njmin-aer.pdf), but I get very close.
+
+```{r}
+nj_min_pre <- 
+  cardkrueger %>%
+  select(sheet, empft, emppt, state, nmgrs) %>%
+  rename(ft = empft, pt = emppt) %>%
+  mutate(time = 1) 
+
+nj_min_post <- 
+  cardkrueger %>%
+  select(sheet, empft2, emppt2, state, nmgrs2) %>%
+  rename(ft = empft2, pt = emppt2, nmgrs = nmgrs2) %>%
+  mutate(time = 2)
+
+nj_min <- 
+  bind_rows(nj_min_pre, nj_min_post) %>%
+  mutate(total = ft + pt,
+         fte = ft + pt * 0.5 + nmgrs,
+         post = time == 2, 
+         treat = state == 1) %>%
+  group_by(sheet) %>% 
+  mutate(balanced = sum(!is.na(total)) == 2) %>%
+  ungroup() 
+
+fms <- list(lm(total ~ post * treat, data = nj_min),
+            lm(total ~ post * treat, data = nj_min, subset = balanced),
+            lm(fte ~ post * treat, data = nj_min),
+            lm(fte ~ post * treat, data = nj_min, subset = balanced))
+```
+
+```{r, results="asis", echo=FALSE}
+stargazer(fms, keep.stat = c("n", "rsq"), type = "html")
+```

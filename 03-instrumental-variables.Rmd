@@ -1,3 +1,12 @@
+# Instrumental Variables
+
+## Introduction
+
+## A Confounded Model
+
+### 
+
+```{r}
 set.seed(123456789)
 
 get_data <- function() {
@@ -70,4 +79,4 @@ print(lm_iv(df$y, df$x), digits = 3)
 print(lm_iv(df$y, df$x, df$z), digits = 3)
 
 # 3.4: Returns to schooling ----
-
+```

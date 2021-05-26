@@ -1,0 +1,19 @@
+--- 
+title: "Learning Microeconometrics with R: The tidyverse version"
+author: "Ian Gow"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+documentclass: book
+bibliography: [book.bib]
+biblio-style: apalike
+link-citations: yes
+description: "This 'book' contains a 'translation' of base R code to Tidyverse code."
+---
+
+# Prerequisites {-}
+
+The **lmwr** package provides data and can be installed from Github:
+
+```{r eval=FALSE}
+devtools::install_github("iangow/lmwr")
+```

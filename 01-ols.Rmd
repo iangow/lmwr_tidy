@@ -1,9 +1,11 @@
+# Ordinary Least Squares
+
+```{r}
 library(dplyr, warn.conflicts = FALSE)
 library(haven)
 
 url <- paste0("https://wps.pearsoned.com/wps/media/objects/11422/",
               "11696965/datasets3e/datasets/hmda_aer.dta")
-
 hdma <- 
   read_dta("~/Downloads/hmda_aer.dta") %>%
   mutate(deny = case_when(s7 == 3 ~ TRUE,
@@ -51,3 +53,4 @@ beta_tilde_hat <- get_coefs(X2, Y2)
 Delta_hat <- get_coefs(X2, W2) 
 gamma_hat <- get_coefs(W2, Y2)
 beta_tilde_hat - Delta_hat %*% gamma_hat
+```

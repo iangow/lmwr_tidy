@@ -1,4 +1,24 @@
-# 6.2.2. Simulation of censored data ----
+# Estimating Selection Models
+
+## Introduction
+
+```{r, message=FALSE}
+library(lmwr)
+library(dplyr, warn.conflicts = FALSE)
+library(ggplot2)
+library(stargazer)
+library(AER)
+library(sampleSelection)
+```
+
+## Modelling Censored Data
+
+### A Model of Censored Data
+
+### Simulation of Censored Data
+
+```{r}
+
 
 set.seed(123456789)
 
@@ -44,11 +64,12 @@ exp(a1$par[1])
 a1$par[-1]
 
 # Check against AER
-library(AER)
-tobit(y ~ x)
+AER::tobit(y ~ x)
+```
 
-# 6.4.2 Simulation of a selection model ----
+### 6.4.2 Simulation of a selection model
 
+```{r}
 library(mvtnorm)
 set.seed(123456789)
 N <- 100
@@ -69,12 +90,14 @@ df <-
 
 # OLS model
 lm1 <- lm(y ~ x, data = df)
-lm2 <- update(fm1, subset = z < 0.6)
-glm1 <- glm(y > 0 ~ z, family = binomial(link = "probit"))
+lm2 <- update(lm1, subset = z < 0.6)
+glm1 <- glm(y > 0 ~ z, family = binomial(link = "probit"), data = df)
 stargazer(list(lm1, lm2, glm1), type = "text", keep.stat = c("n", "rsq"))
+```
 
-# 6.4.5 Heckman estimator in R ----
+### Heckman estimator in R 
 
+```{r}
 f_heckman <- function(par, y, X_in, Z_in = X_in) {
   
   X <- cbind(1, X_in)
@@ -153,41 +176,19 @@ a2 <- optim(par = par2, fn = f_heckman_alt, y = df$y, X = df$x, Z = df$z,
 exp(a2$par[1])/(1 + exp(a2$par[1]))
 a2$par[-1]
 
-library(sampleSelection)
+
 heckit <- selection((y > 0) ~ z, y ~ x, data = df, method = "ml",
                     maxMethod = "NM")
 summary(heckit)
 heckit$estimate
+```
 
-# 6.5.1 NLSY97 data ----
-library(googlesheets4)
-library(dplyr, warn.conflicts = FALSE)
-library(ggplot2)
-library(stargazer)
+## Analysing the Gender Wage Gap
 
-nlsy97_raw <- read_sheet("1TccRf1Cbc4h9fu31WhKhzzleEKKKgiRkLofcebRQQnE",
-                         na = "NA")
+### NLSY97 data 
 
-nlsy97 <-
-  nlsy97_raw %>%
-  mutate(wage = if_else(CVC_HOURS_WK_YR_ALL.07_XRND > 0,
-                        `YINC-1700_2007`/CVC_HOURS_WK_YR_ALL.07_XRND, 0),
-        lwage = if_else(wage > 1, log(wage), 0),
-        fulltime = CVC_HOURS_WK_YR_ALL.07_XRND > 1750,
-        lftwage = if_else(lwage > 0 & fulltime, lwage, 0),
-        female = KEY_SEX_1997==2,
-        black = KEY_RACE_ETHNICITY_1997==1,
-        age = 2007 - KEY_BDATE_Y_1997,
-        age2 = age^2,
-        college = CV_HIGHEST_DEGREE_0708_2007 >= 3,
-        south = CV_CENSUS_REGION_2007==3,
-        urban = `CV_URBAN-RURAL_2007`==1,
-        msa = CV_MSA_2007 > 1 & CV_MSA_2007 < 5,
-        married = CV_MARSTAT_COLLAPSED_2007==2,
-        children = CV_BIO_CHILD_HH_2007 > 0) %>%
-  select(black, lftwage, age, age2, msa, urban, south, college, female,
-         married, children) %>%
-  na.omit()
+```{r}
+nlsy97 <- na.omit(nlsy97)
 
 nlsy97 %>%
   filter(lftwage > 0) %>%
@@ -198,7 +199,8 @@ lm3 <- lm(lftwage ~ female + age + age2 + black + college + south + msa,
           data = nlsy97)
 lm1 <- update(lm3, subset = !female)
 lm2 <- update(lm3, subset = female)
+```
 
-stargazer(list(lm1, lm2, lm3), type = "text", keep.stat = c("n", "rsq"))
-
-
+```{r, echo=FALSE, results='asis'}
+stargazer(list(lm1, lm2, lm3), type = "html", keep.stat = c("n", "rsq"))
+```
