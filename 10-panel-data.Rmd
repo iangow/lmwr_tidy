@@ -11,7 +11,9 @@ library(dplyr, warn.conflicts = FALSE)
 library(lmwr)
 library(tidyr)
 library(stargazer)
+library(lfe) 
 ```
+
 ```{r}
 set.seed(123456789)
 N <- 1000
@@ -135,6 +137,10 @@ It is unclear how that measure is calculated."
 Actually if you go to the website for the data, you can see from the provided SAS code that it is calculated as below.
 I don't quite reproduce the results in Table 3 of [the paper](https://davidcard.berkeley.edu/papers/njmin-aer.pdf), but I get very close.
 
+### Data from Card and Krueger (1994)
+
+We used `cardkrueger` from `lmwr`.
+
 ```{r}
 nj_min_pre <- 
   cardkrueger %>%
@@ -157,7 +163,11 @@ nj_min <-
   group_by(sheet) %>% 
   mutate(balanced = sum(!is.na(total)) == 2) %>%
   ungroup() 
+```
 
+### Difference-in-Difference Estimates
+
+```{r}
 fms <- list(lm(total ~ post * treat, data = nj_min),
             lm(total ~ post * treat, data = nj_min, subset = balanced),
             lm(fte ~ post * treat, data = nj_min),
@@ -166,4 +176,146 @@ fms <- list(lm(total ~ post * treat, data = nj_min),
 
 ```{r, results="asis", echo=FALSE}
 stargazer(fms, keep.stat = c("n", "rsq"), type = "html")
+```
+
+## Fixed Effects
+
+### Fixed-Effects Estimator
+
+### Nuisance Parameter
+
+### Adjusted Fixed-Effects Estimator
+
+### Two-Step Fixed-Effects Estimator
+
+### Fixed Effects Estimator in R
+
+Note that the code in the book incorrectly describes `XT` and `XC` ("in each row" and "in each column" are flipped).
+
+```{r}
+f_fe <- function(Y, X = NULL, cross = TRUE) {
+  Y <- as.matrix(Y)
+  T <- dim(Y)[1]
+  N <- dim(Y)[2]
+  
+  # Creates a T x N matrix with numbers 1 to T in each column
+  XT <- matrix(rep(c(1:T), N), nrow = T)
+  y <- as.vector(Y)
+  t <- as.vector(XT)
+  
+  # Set up for different cases
+  if (cross) {
+    # Create cross-section dummies
+    
+    # Creates a T x N matrix with 1 to N in each row
+    XC <- t(matrix(rep(c(1:N), T), nrow = N))
+    c <- as.vector(XC)
+  }
+  
+  if (!is.null(X)) {
+    # Create treatment variable
+    X <- as.matrix(X)
+    treat <- as.vector(X)
+  }
+  
+  # Estimator
+  if (cross & !is.null(X)) {
+    # Standard case
+    lm1 <- lm(y ~ treat + as.factor(t) + as.factor(c))
+  } else if (!is.null(X)) {
+    # No cross-section
+    lm1 <- lm(y ~ treat + as.factor(t))
+  } else {
+    # No treatment
+    lm1 <- lm(y ~ as.factor(t))
+  }
+  return(lm1)
+}
+```
+
+The simulated panel data set has 100 individuals observed over 10 time periods.
+
+```{r}
+set.seed(123456789)
+N <- 100
+T <- 10
+alpha <- runif(N)
+gamma <- runif(T)
+beta <- 3
+epsilon <- matrix(rnorm(N * T), nrow = T)
+treat <- runif(N) < 0.5
+y <- t(matrix(rep(alpha, T), nrow = N)) + gamma + epsilon
+y[1, ] <- y[1, ] + beta * treat
+treat1 <- matrix(0, T, N)
+treat1[1, ] <- treat
+```
+
+```{r}
+# Standard estimator
+lm1 <- f_fe(y, treat1)
+
+# No invidividual fixed effects
+lm2 <- f_fe(y, treat1, cross = FALSE)
+
+# Adjusted estimator
+y0 <- y[2:T, ] 
+alpha_hat <- colMeans(y0) # Calculate alpha
+y2 <- y - t(matrix(rep(alpha_hat, T), nrow = N))
+lm3 <- f_fe(y2, treat1, cross = FALSE)
+
+# Two-step estimator
+lm4 <- f_fe(y0, cross = FALSE)
+y0_res <- matrix(lm4$residuals, nrow = T - 1)
+alpha_hat <- colMeans(y0_res) # Calculate alpha
+y3 <- y - t(matrix(rep(alpha_hat, T), nrow = N)) # Adjust outcome
+lm5 <- f_fe(y3, treat1, cross = FALSE)
+```
+
+```{r, results="asis"}
+stargazer(list(lm1, lm2, lm3, lm5),
+          keep.stat = c("n", "rsq"), keep = "treat", type = "html")
+```
+
+Now, rearrange the data into a "tidy" form.
+
+```{r}
+df <-
+  tibble(y = as.vector(y), 
+         treat = as.vector(treat1),
+         id = as.vector(t(matrix(rep(c(1:N), T), nrow = N))),
+         t = as.vector(rep(c(T:1), N)))
+
+df %>% print(n = 15)
+```
+
+And use the `felm` function from the `lfe` package to reproduce the regression results above.
+
+```{r} 
+felm1 <- felm(y ~ treat | id + t, data = df)
+felm2 <- felm(y ~ treat | t, data = df)
+
+df_alpha_hat <-
+  df %>% 
+  filter(t < 10) %>%
+  mutate(y0_res = residuals(lm(y ~ as.factor(t), data = .))) %>%
+  group_by(id) %>%
+  summarize(alpha_hat = mean(y0_res),
+            mean_y = mean(y), .groups = "drop")
+
+felm3 <-
+  df %>%
+  inner_join(df_alpha_hat, by = "id") %>%
+  mutate(y = y - mean_y) %>%
+  felm(y ~ treat | t, data = .)
+  
+felm5 <-
+  df %>%
+  inner_join(df_alpha_hat, by = "id") %>%
+  mutate(y = y - alpha_hat) %>%
+  felm(y ~ treat | t, data = .)
+```   
+
+```{r, results="asis"}
+stargazer(list(felm1, felm2, felm3, felm5),
+          keep.stat = c("n", "rsq"), keep = "treat", type = "html")
 ```

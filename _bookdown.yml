@@ -1,5 +1,6 @@
-book_filename: "test"
+book_filename: "lmwr_tidy"
 delete_merged_file: true
+new_session: yes
 language:
   ui:
     chapter_name: "Chapter "

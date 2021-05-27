@@ -2,6 +2,7 @@
 
 ```{r}
 library(stargazer)
+library(dplyr, warn.conflicts = FALSE)
 ```
 
 
