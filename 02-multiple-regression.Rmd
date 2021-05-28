@@ -1,10 +1,131 @@
-# Multiple regression
+# Multiple Regression
 
-```{r}
+```{r, message=FALSE}
 library(stargazer)
 library(dplyr, warn.conflicts = FALSE)
+library(lmwr)
+library(xtable)
+library(ggplot2)
 ```
 
+## Introduction
+
+## Long and Short Regression
+
+### Using Short Regression
+
+### Independent Explanatory Variables
+
+### Dependent Explanatory Variables
+
+### Simulation with Multiple Explanatory Variables
+
+```{r}
+N <- 1000
+a <- 2
+b <- 3
+c <- 4
+```
+
+```{r}
+set.seed(123456789)
+u_x <- rnorm(N)
+```
+
+```{r}
+get_lms <- function(alpha = 0, return_data = FALSE) {
+  x <- (1 - alpha) * runif(N) + alpha * u_x
+  w <- (1 - alpha) * runif(N) + alpha * u_x
+  if (alpha == 0) u <<- rnorm(N)
+  y <- a + b* x + c * w + u
+  if (return_data) {
+    data.frame(y, x, w)
+  } else {
+    list(lm(y ~ x), lm(y ~ x + w))
+  }
+}
+```
+
+```{r}
+set.seed(123456789)
+u_x <- rnorm(N)
+lms <- lapply(list(0, 0.5, 0.95), get_lms, return_data = FALSE)
+```
+
+```{r, results="asis"}
+library(stargazer)
+stargazer(lms, type = "html", keep.stat = c("n", "rsq"), digits = 2)
+```
+
+### Matrix Algebra of Short Regression
+
+```{r}
+set.seed(123456789)
+u_x <- rnorm(N)
+dfs <- lapply(list(0, 0.5, 0.95), get_lms, return_data = TRUE)
+```
+
+```{r}
+with(dfs[[1]], cov(x, w))
+with(dfs[[2]], cov(x, w))
+with(dfs[[2]], t(x) %*% w)
+```
+
+## Collinearity and Multicollinearity
+
+### Matrix Algebra of Multicollinearity
+
+### Understanding Multicollinearity with R
+
+```{r}
+X2 <- with(dfs[[3]], cbind(1, x, w))
+solve(t(X2) %*% X2) %*% t(X2) %*% u
+```
+
+```{r}
+mean(u)
+```
+
+```{r}
+with(dfs[[3]], cov(w, u))
+1/N * t(X2) %*% u
+```
+```{r}
+1/det(t(X2) %*% X2)
+```
+
+## Returns to Schooling
+
+### Multiple Regression of Returns to Schooling
+
+### NLSM Data
+
+```{r}
+nlsm_mod <-
+  nlsm %>%
+  filter(!is.na(lwage76)) %>%
+  mutate(exp = age76 - ed76 - 6,
+         exp2 = exp^2/100)
+```
+
+### OLS Estimates of Returns to Schooling
+
+```{r, results="asis"}
+fm <- list()
+fm[[1]] <- lm(lwage76 ~ ed76, data = nlsm_mod)
+fm[[2]] <- update(fm[[1]], ~ . + exp + exp2)
+fm[[3]] <- update(fm[[2]], ~ . + black + reg76r)
+fm[[4]] <- update(fm[[3]], ~ . + smsa76r + smsa66r + reg662 + reg663 +
+                    reg664 + reg665 + reg666 + reg667 + reg668 + reg669)
+
+stargazer(fm, type = "html", keep.stat = c("n", "rsq"),
+          omit = "^(reg66|smsa)")
+```
+## Causal Pathways
+
+### Dual-Path Model
+
+### Simulation of Dual-Path Model
 
 ```{r}
 set.seed(123456789)
@@ -28,18 +149,24 @@ df <- gen_data()
 fm <- list()
 fm[[1]] <- lm(y ~ x, data = df)
 fm[[2]] <- update(fm[[1]], ~ . + w)
+```
 
-stargazer(fm, type = "text", keep.stat = c("n", "rsq"),
+```{r, results="asis"}
+stargazer(fm, type = "html", keep.stat = c("n", "rsq"),
           omit = "^(reg66|smsa)")
+```
+
+```{r}
 e_hat <- lm(y ~ x, data = df)$coefficients[2]
 c_hat <- lm(y ~ w, data = df)$coefficients[2]
 d_hat <- lm(w ~ x, data = df)$coefficients[2]
 b_hat <- e_hat - c_hat * d_hat
 b_hat
+```
 
-# Chapter 2.5.3
+#### Dual Path Estimator Versus Long Regression
 
-
+```{r}
 sim_run <- function(i) {
 
   df <- gen_data()
@@ -53,29 +180,130 @@ sim_run <- function(i) {
              proposed = b_hat)
 }
 
-b_mat <- bind_rows(lapply(1:100, sim_run))
-
-summ_tab <- summary(b_mat)
-rownames(summ_tab) <- NULL
-summ_tab
-
-hist(b_mat$standard, freq = FALSE, 
-     xlab = "Estimate of b", main = "")
-lines(density(b_mat$standard), type = "l", lwd = 3)
-abline(v = c(min(b_mat$proposed),
-             max(b_mat$proposed)), lty = 2, lwd = 3)
 ```
 
-```{r, eval=FALSE}
-# These lines just get the seed in the right place
+```{r, results="asis"}
+sim_res <- lapply(1:100, sim_run)
+sim_res <- bind_rows(sim_res)
+b_mat <- t(as.matrix(bind_rows(lapply(sim_res, summary))))
+colnames(b_mat) <- c("Standard est", "t-stat", "Proposed est")
+print(xtable(b_mat, digits = 3),
+      type = "html")
+```
+
+```{r}
+hist(sim_res$standard, freq = FALSE,
+     breaks = seq(-8, 8, by = 2),
+     xlab = "Estimate of b", main = "")
+lines(density(sim_res$standard), type = "l", lwd = 3)
+abline(v = c(min(sim_res$proposed),
+             max(sim_res$proposed)), lty = 2, lwd = 3)
+```
+
+```{r}
+sim_res %>%
+  ggplot(aes(x = standard,  y = ..density..)) +
+  geom_histogram(breaks = seq(-8, 8, by = 2),
+                 fill = "grey", colour = "black") +
+  geom_density() +
+  geom_vline(xintercept = c(min(sim_res$proposed),
+                            max(sim_res$proposed)),
+             linetype = 2)
+```
+
+## Are Bankers Racist or Greedy?
+
+### Boston HDMA Data
+
+```{r, results="asis"}
+hdma_cc <- 
+  hdma %>%
+  mutate(lwage = if_else(wage > 0, log(wage), NA_real_),
+         emp = if_else(emp > 1000, NA_real_, emp)) %>%
+  select(deny, black, lwage, chist, mhist, phist, emp) 
+
+lm1 <- lm(deny ~  black, data = hdma_cc) 
+print(xtable(lm1), type = "html")
+```
+### Causal Pathways of Discrimination
+
+### Estimating the Direct Effect
+
+```{r}
+get_direct_effect <- function(df, y_var, x_var) {
+  
+  df <- na.omit(df)
+  
+  W <- df %>% select(-all_of(c(x_var, y_var)))
+  Y <- df %>% select(all_of(y_var))
+  X <- df %>% select(all_of(x_var))
+  
+  X <- cbind(1, as.matrix(X))
+  W <- cbind(1, as.matrix(W))
+  Y <- as.matrix(Y)
+  
+  beta_tilde_hat <- solve(t(X) %*% X) %*% t(X) %*% Y
+  Delta_hat <- solve(t(X) %*% X) %*% t(X) %*% W
+  gamma_hat <- solve(t(W) %*% W) %*% t(W) %*% Y
+  beta_hat <- beta_tilde_hat - Delta_hat %*% gamma_hat
+  tibble(intercept = beta_hat[1], `direct effect` = beta_hat[2])
+}
+```
+
+```{r, results="asis"}
+hdma_cc %>%
+  get_direct_effect(y_var = "deny", x_var = "black") %>%
+  xtable(digits = 8) %>%
+  print(include.rownames = FALSE, type = "html")
+```
+
+### Adding in More Variables
+
+```{r, results="asis"}
+hdma_more <- 
+  hdma %>%
+  mutate(lwage = if_else(wage > 0, log(wage), NA_real_),
+         lwage_coap = if_else(wage_coap > 0, log(wage_coap), NA_real_),
+         lwage_coap2 = if_else(coap, lwage_coap, 0)) %>%
+  select(deny, black, lwage, chist, mhist, phist, emp,
+         married, dr, clines, male, suff, assets, lr, pr,
+         coap, s20, s24a, s27a, s39, s48, s53, s55, s56,
+         s57, chval, school, bd, mi, old, vr, uria, netw,
+         lwage_coap2) %>%
+  na.omit()
+```
+
+### Bootstrap Dual-Path Estimator in R
+
+```{r}
 set.seed(123456789)
-for (i in 1:100) print(df <- gen_data()
-X <- cbind(1, df$x)
-W <- cbind(1, df$w)
-y <- df$y
-beta_tilde_hat <- solve(t(X) %*% X) %*% t(X) %*% y
-Delta_hat <- solve(t(X) %*% X) %*% t(X) %*% W
-gamma_hat <- solve(t(W) %*% W) %*% t(W) %*% y
-beta_hat <- beta_tilde_hat - Delta_hat %*% gamma_hat
-beta_hat
+K <- 1000
+
+run_bs_iter <- function(i) {
+  hdma_more %>% 
+    slice_sample(prop = 1, replace = TRUE) %>%
+    get_direct_effect(y_var = "deny", x_var = "black")
+}
+
+sim_res <- bind_rows(lapply(1:K, run_bs_iter))
+```
+
+```{r}
+my_summ <- function(df) {
+  my_summ_fun <- function(x) {
+    tibble(Estimate = mean(x), 
+           SD = sd(x),
+           `2.5%` = quantile(x, 0.025),
+           `97.5%` = quantile(x, 0.975))
+  }
+
+  bind_rows(lapply(df, my_summ_fun), .id = "variable")
+}
+```
+
+```{r, results="asis"}
+sim_res %>% 
+  my_summ() %>% 
+  xtable() %>%
+  print(include.rownames = FALSE, type = "html")
 ```
