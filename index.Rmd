@@ -10,6 +10,16 @@ link-citations: yes
 description: "This 'book' contains a 'translation' of base R code to Tidyverse code."
 ---
 
+This is a fan-created companion to ["Learning Microeconometrics with R"](https://www.amazon.com/dp/0367255383).
+
+The code here departs from the book in a few respects:
+
+1. More use of the Tidyverse for data manipulation.
+2. More use of functions
+3. Use of the `lmwr` package for data (see below for details).
+
+The code for this book is available on GitHub [here](https://github.com/iangow/lmwr_tidy).
+
 # Prerequisites {-}
 
 The **lmwr** package provides data and can be installed from Github:
