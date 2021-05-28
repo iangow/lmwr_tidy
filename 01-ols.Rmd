@@ -2,55 +2,206 @@
 
 ```{r}
 library(dplyr, warn.conflicts = FALSE)
-library(haven)
+library(ggplot2)
+library(xtable)
+library(lmwr)
+```
 
-url <- paste0("https://wps.pearsoned.com/wps/media/objects/11422/",
-              "11696965/datasets3e/datasets/hmda_aer.dta")
-hdma <- 
-  read_dta("~/Downloads/hmda_aer.dta") %>%
-  mutate(deny = case_when(s7 == 3 ~ TRUE,
-                          s7 %in% c(1, 2) ~ FALSE,
-                          TRUE ~ NA),
-         black = s13 == 3,
-         lwage = if_else(s31a > 0 & s31a < 999999, log(s31a), NA_real_),
-         emp = if_else(s25a > 1000, NA_real_, s25a),
-         married = s23a == "M",
-         across(c(s11, s31c, s35, s6, s50, s33, school, s57, s48, s39,
-                  chval, s20),
-                ~ if_else(. > 999999, NA_real_, .))) %>%
-  rename(mhist = s42, chist = s43, phist = s44)
-         
+## Introduction
 
-lm(deny ~ black, data = hdma)
+## Estimating the Causal Effect
 
-hdma_cc <- 
-  hdma %>%
-  select(deny, black, lwage, chist, mhist, phist, emp) %>%
-  na.omit()
+### Graphing the Causal Effect
 
-Y2 <- 
-  hdma_cc %>% 
-  select(deny) 
+### A Linear Causal Model
 
-X2 <- 
-  hdma_cc %>%
-  select(black) %>%
-  mutate(constant = 1)
-  
-W2 <- 
-  hdma_cc %>% 
-  select(-deny, -black) %>% 
-  mutate(constant = 1)
-  
-get_coefs <- function(X, Y) {
-  Y <- as.matrix(Y)
-  X <- as.matrix(X)
-  
-  solve(t(X) %*% X) %*% t(X) %*% Y
+### Simulation of the Causal Effect
+
+```{r}
+set.seed(123456789)
+N <- 100
+a <- 2
+b <- 3
+c <- 3
+d <- 4
+
+gen_data <- function() {
+  x <- runif(N)
+  u <- rnorm(N)
+  y <- a + b* x + u
+  data.frame(y, x, u)
 }
- 
-beta_tilde_hat <- get_coefs(X2, Y2)
-Delta_hat <- get_coefs(X2, W2) 
-gamma_hat <- get_coefs(W2, Y2)
-beta_tilde_hat - Delta_hat %*% gamma_hat
+
+df <- gen_data()
+```
+
+### Averaging to Estimate the Causal Effect
+
+```{r}
+df %>% filter(x > 0.95) %>% summarize(mean(y)) %>% pull() -
+  (df %>% filter(x < 0.05) %>% summarize(mean(y)) %>% pull())
+```
+```{r}
+df %>%
+  ggplot() + 
+  geom_point(aes(x, y)) +
+  geom_abline(intercept = 2, slope = 3)
+```
+### Assumptions of the OLS Model
+
+## Matrix Algebra of the OLS Model
+
+### Standard Algebra of the OLS Model
+
+### Algebraic OLS Estimator in R
+
+### Using Matrices
+
+### Multiplying Matrices in R
+
+**Oops!!** Seems we have switched to `=` for assignment instead of `<-` in the book here.
+
+```{r}
+x1 <- df$x[1:5]
+X1 <- cbind(1, x1)
+as.vector(X1 %*% c(2, 3))
+```
+
+Compare to the true values:
+
+```{r}
+df$y[1:5]
+```
+
+### Matrix Estimator of OLS
+
+### Matrix Estimator of OLS in R
+
+```{r}
+X <- cbind(1, df$x)
+```
+
+```{r}
+A <- matrix(c(1:6), nrow=3)
+A
+```
+
+```{r}
+t(A)
+```
+
+```{r}
+t(A) %*% A
+```
+
+```{r}
+t(X) %*% X
+```
+
+```{r}
+solve(t(X) %*% X)
+```
+
+```{r}
+beta_hat <- solve(t(X) %*% X) %*% t(X) %*% df$y
+beta_hat
+```
+
+```{r}
+solve(t(X) %*% X) %*% t(X) %*% df$u
+```
+
+## Least Squares Method for OLS
+
+### Moment Estimation
+
+### Algebra of Least Squares
+
+### Estimating Least Squares in R
+
+```{r}
+optimize(function(b) sum((df$y - 2 - b*df$x)^2), c(10, -10))$minimum
+```
+```{r}
+(sum(df$x * df$y) - 2 * sum(df$x))/sum((df$x)^2)
+```
+
+### The `lm()` Function
+
+```{r}
+lm1 <- lm(y ~ x, data = df)
+length(lm1)
+lm1$coefficients
+```
+
+## Measuring Uncertainty
+
+### Data Simulations
+
+```{r}
+K <- 1000
+sim_res <- lapply(1:K, function(i) lm(y ~ x, data = gen_data())$coefficients)
+sim_res <- bind_rows(sim_res)
+names(sim_res) <- c("Estimated a", "Estimated b")
+```
+
+```{r, results="asis"}
+tab_res <- t(as.matrix(bind_rows(lapply(sim_res, summary))))
+colnames(tab_res) <- c("Estimated a", "Estimated b")
+
+print(xtable(tab_res, digits = 3),
+      type = "html")
+```
+### Introduction to the Bootstrap
+
+### Bootstrap in R
+
+```{r}
+set.seed(123456789)
+K <- 1000
+tab_res <- lapply(1:K, function(i) lm(y ~ x, data = df[round(runif(N, min=1, max=N)),])$coefficients)
+
+my_summ <- function(x) {
+  tibble(mean = mean(x), sd = sd(x),
+         p2.5 = quantile(x, 0.025),
+         p97.5 = quantile(x, 0.975))
+}
+tab_res <- bind_rows(tab_res)
+names(tab_res) <- c("Estimated a", "Estimated b")
+tab_res <- bind_rows(lapply(tab_res, my_summ), .id = "variable")
+```
+
+```{r, results="asis"}
+print(xtable(tab_res),
+      include.rownames = FALSE,
+      type = "html")
+```
+```{r, results="asis"}
+print(xtable(summary(lm1), digits = 3),
+      type = "html")
+```
+
+## Returns to Schooling
+
+### A Linear Model of Returns to Schooling
+
+### NLSM Data
+
+### Plotting Returns to Schooling
+
+```{r}
+lm1 <- lm(lwage76 ~ ed76, data = nlsm)
+```
+
+### Plotting Returns to Schooling
+
+```{r}
+ggplot(data = nlsm) + 
+  geom_point(aes(x = ed76, y = lwage76)) +
+  geom_abline(intercept = lm1$coefficients[1], slope = lm1$coefficients[2])
+```
+
+```{r}
+exp(log(mean(nlsm$wage76, na.rm = TRUE)) + 
+      lm1$coefficients[2])/mean(nlsm$wage76, na.rm = TRUE)
 ```
