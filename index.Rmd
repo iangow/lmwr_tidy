@@ -18,6 +18,12 @@ The code here departs from the book in a few respects:
 2. More use of functions
 3. Use of the `lmwr` package for data (see below for details).
 
+These differences (especially the first one) are as much a matter of taste as any suggestion that the way the book does things is inferior.
+Actually, I think the decision of the book to use "Base R" almost exclusively makes a lot of sense.
+But if (like me) you are familiar with the Tidyverse or if you (like me) prefer (over)using functions, then feel free to borrow from the materials here.
+
+Even if you don't have any interest in (1) and (2), item (3) provides a convenient way to get the data used in the book.
+
 The code for this book is available on GitHub [here](https://github.com/iangow/lmwr_tidy).
 
 # Prerequisites {-}
